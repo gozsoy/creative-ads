@@ -1,19 +1,16 @@
 {
   "name": "creative-ads",
   "version": "1.0.0",
-  "description": "A minimalistic AI microservice written in node.js",
-  "main": "index.js",
+  "description": "",
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "start": "nodemon index.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Gokberk Ozsoy",
+  "keywords": [],
+  "author": "",
   "license": "ISC",
   "dependencies": {
-    "@xenova/transformers": "^2.17.2",
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
-    "nodemon": "^3.1.4",
-    "ntc": "^0.0.1"
+    "@xenova/transformers": "^2.17.2"
   }
 }
