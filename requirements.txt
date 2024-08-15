@@ -1,0 +1,4 @@
+transformers
+pillow
+boto3
+numpy
