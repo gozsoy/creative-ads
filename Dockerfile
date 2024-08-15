@@ -1,17 +1,11 @@
 FROM public.ecr.aws/lambda/python:3.12
 
 # Copy requirements.txt
-#COPY requirements.txt ${LAMBDA_TASK_ROOT}
+COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
 # Install the specified packages
-#RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
-#RUN pip install 'transformers[torch]'
-#RUN pip install -r requirements.txt
-
-
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-RUN pip install transformers numpy boto3 pillow accelerate
-RUN pip install --no-deps diffusers
+RUN pip install -r requirements.txt
 
 # Copy function code
 COPY lambda_function.py ${LAMBDA_TASK_ROOT}

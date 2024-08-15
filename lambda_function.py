@@ -3,22 +3,20 @@ import ast
 import base64
 
 from PIL import Image
-from diffusers import StableDiffusionImg2ImgPipeline
-# edit StableDiffusionSafetyChecker class so it just returns the images and True values
-from diffusers.pipelines.stable_diffusion import safety_checker
+import torch
+from transformers import DetrImageProcessor, DetrForObjectDetection
 
-def sc(self, clip_input, images) :
-    return images, [False for i in images]
-
-safety_checker.StableDiffusionSafetyChecker.forward = sc
-
-pipe = StableDiffusionImg2ImgPipeline.from_pretrained("runwayml/stable-diffusion-v1-5",
-                                                      cache_dir="./hf_cache")
+# you can specify the revision tag if you don't want the timm dependency
+processor = DetrImageProcessor.from_pretrained("facebook/detr-resnet-50", 
+                                               revision="no_timm", 
+                                               cache_dir='./hf_cache')
+model = DetrForObjectDetection.from_pretrained("facebook/detr-resnet-50", 
+                                               revision="no_timm",
+                                               cache_dir='./hf_cache')                                             
 
 def handler(event, context):
     body = ast.literal_eval(event['body'])
     
-    prompt = body['prompt']
     encoded_image = body['encoded_image']
     color = body['color']
 
@@ -26,17 +24,23 @@ def handler(event, context):
     image_bytes = base64.b64decode(encoded_image)
 
     # Convert bytes to a BytesIO object
-    init_image = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((256, 256))
+    init_image = Image.open(io.BytesIO(image_bytes))
 
-    generated_image = pipe(prompt=prompt, 
-                           image=init_image, 
-                           strength=0.95,
-                           guidance_scale=8.5
-                           ).images[0]
+    # run object detection model
+    inputs = processor(images=init_image, return_tensors="pt")
+    outputs = model(**inputs)
 
-    buffered = io.BytesIO()
-    generated_image.save(buffered, format="JPEG")
-    base64_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+    # only keep detections with score > 0.9
+    target_sizes = torch.tensor([init_image.size[::-1]])
+    results = processor.post_process_object_detection(outputs, target_sizes=target_sizes, threshold=0.9)[0]
+
+    # report detected objects in html file
+    detected_labels = []
+    prompt = ""
+    for score, label in zip(results["scores"], results["labels"]):
+        if model.config.id2label[label.item()] not in detected_labels:
+            prompt += f"Detected {model.config.id2label[label.item()]} with confidence {round(score.item(), 3)}. <br>"
+            detected_labels.append(model.config.id2label[label.item()])
 
     html_string = f"""
         <html>
@@ -91,7 +95,7 @@ def handler(event, context):
                 <div class="top-line"></div>
                 <div class="container">
                 <h1>{prompt}</h1>
-                <img src="data:image/jpeg;base64,{base64_image}" alt="Base64 Image" />
+                <img src="data:image/jpeg;base64,{encoded_image}" alt="Base64 Image" />
             </div>
             <div class="button-container">
                 <button class="my-button">Like</button>
@@ -101,4 +105,11 @@ def handler(event, context):
         </html>
     """
 
-    return html_string
+    return {
+      "isBase64Encoded": False,
+      "statusCode": 200,
+      "body": html_string,
+      "headers": {
+        "content-type": "text/html"
+      }
+    }
